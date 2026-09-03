@@ -797,30 +797,33 @@ Widget _compactListItem(
   int index,
   VoidCallback onTap,
 ) {
-  return ListTile(
-    key: ValueKey('compact-row-${conversation.id}'),
-    dense: true,
-    visualDensity: const VisualDensity(vertical: -3),
-    contentPadding: const EdgeInsets.symmetric(horizontal: 9),
-    onTap: onTap,
-    leading: CircleAvatar(
-      radius: 14,
-      backgroundColor: const Color(0xFFDCE9E5),
-      child: Text(
-        conversation.displayTitle.characters.first,
-        style: const TextStyle(fontSize: 11, color: Color(0xFF315B52)),
+  return Material(
+    color: Colors.transparent,
+    child: ListTile(
+      key: ValueKey('compact-row-${conversation.id}'),
+      dense: true,
+      visualDensity: const VisualDensity(vertical: -3),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 9),
+      onTap: onTap,
+      leading: CircleAvatar(
+        radius: 14,
+        backgroundColor: const Color(0xFFDCE9E5),
+        child: Text(
+          conversation.displayTitle.characters.first,
+          style: const TextStyle(fontSize: 11, color: Color(0xFF315B52)),
+        ),
       ),
+      title: Text(
+        conversation.displayTitle,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+      ),
+      trailing:
+          index == 0
+              ? const Icon(Icons.circle, size: 8, color: Color(0xFF2F8A72))
+              : null,
     ),
-    title: Text(
-      conversation.displayTitle,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-    ),
-    trailing:
-        index == 0
-            ? const Icon(Icons.circle, size: 8, color: Color(0xFF2F8A72))
-            : null,
   );
 }
 
