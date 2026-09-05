@@ -15,12 +15,14 @@ const _userId = String.fromEnvironment(
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  if (_backendUrl.isEmpty || _clientId.isEmpty || _tokenEndpoint.isEmpty) {
+  if (_clientId.isEmpty || _tokenEndpoint.isEmpty) {
     runApp(const _ConfigurationHelp());
     return;
   }
   ConvoKit.configure(
-    backendUrl: _backendUrl,
+    backendUrl: _backendUrl.isEmpty
+        ? ConvoKit.defaultBackendUrl
+        : _backendUrl,
     clientId: _clientId,
     tokenProvider: _issueToken,
   );
@@ -107,8 +109,8 @@ class _ConfigurationHelp extends StatelessWidget {
           child: Padding(
             padding: EdgeInsets.all(24),
             child: Text(
-              'Run with CONVOKIT_BACKEND_URL, CONVOKIT_CLIENT_ID, and '
-              'CONVOKIT_TOKEN_ENDPOINT dart-defines.',
+              'Run with CONVOKIT_CLIENT_ID and CONVOKIT_TOKEN_ENDPOINT '
+              'dart-defines.',
               textAlign: TextAlign.center,
             ),
           ),

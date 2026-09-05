@@ -56,10 +56,12 @@ server:
 
 ```bash
 flutter run -d chrome -t lib/live_example.dart \
-  --dart-define=CONVOKIT_BACKEND_URL=https://api.example.com \
   --dart-define=CONVOKIT_CLIENT_ID=public-client-id \
   --dart-define=CONVOKIT_TOKEN_ENDPOINT=https://app.example.com/api/convokit-token
 ```
+
+The managed `https://api.convokit.app` endpoint is automatic. Add
+`--dart-define=CONVOKIT_BACKEND_URL=...` only for local testing or self-hosting.
 
 Never put a ConvoKit client secret in Flutter application code or
 `--dart-define` values.
