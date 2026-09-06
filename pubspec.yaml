@@ -9,7 +9,7 @@ dependencies:
   flutter:
     sdk: flutter
   convokit_flutter: ^0.2.0
-  convokit_flutter_ui: ^0.2.0
+  convokit_flutter_ui: ^0.2.1
   http: ^1.2.0
 
 dev_dependencies:
