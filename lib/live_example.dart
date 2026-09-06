@@ -20,9 +20,7 @@ Future<void> main() async {
     return;
   }
   ConvoKit.configure(
-    backendUrl: _backendUrl.isEmpty
-        ? ConvoKit.defaultBackendUrl
-        : _backendUrl,
+    backendUrl: _backendUrl.isEmpty ? ConvoKit.defaultBackendUrl : _backendUrl,
     clientId: _clientId,
     tokenProvider: _issueToken,
   );

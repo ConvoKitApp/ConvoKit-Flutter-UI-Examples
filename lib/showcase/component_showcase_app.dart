@@ -907,12 +907,19 @@ Widget _compactMessage(
         ),
         const SizedBox(width: 8),
         Text(
-          '${message.createdAt.hour.toString().padLeft(2, '0')}:${message.createdAt.minute.toString().padLeft(2, '0')}',
+          isConvoKitPendingMessage(message)
+              ? 'Sending…'
+              : _localMessageTime(message.createdAt),
           style: const TextStyle(fontSize: 9, color: Color(0xFF7B8582)),
         ),
       ],
     ),
   );
+}
+
+String _localMessageTime(DateTime createdAt) {
+  final local = createdAt.toLocal();
+  return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
 }
 
 Widget _compactComposer(
