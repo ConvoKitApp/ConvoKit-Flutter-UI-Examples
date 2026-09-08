@@ -260,11 +260,10 @@ class _ShowcaseTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-        child: Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final narrow = constraints.maxWidth < 900;
+        final brand = Row(
           children: [
             Container(
               width: 38,
@@ -291,21 +290,66 @@ class _ShowcaseTopBar extends StatelessWidget {
                 ],
               ),
             ),
-            SegmentedButton<ShowcaseVariant>(
-              key: const ValueKey('variant-selector'),
-              segments: <ButtonSegment<ShowcaseVariant>>[
-                for (final value in ShowcaseVariant.values)
-                  ButtonSegment<ShowcaseVariant>(
-                    value: value,
-                    label: Text(value.label),
-                  ),
-              ],
-              selected: <ShowcaseVariant>{variant},
-              onSelectionChanged: (values) => onVariantChanged(values.single),
-            ),
           ],
-        ),
-      ),
+        );
+        final selector =
+            narrow
+                ? InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Example configuration',
+                    border: OutlineInputBorder(),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<ShowcaseVariant>(
+                      key: const ValueKey('variant-selector'),
+                      value: variant,
+                      isExpanded: true,
+                      items: [
+                        for (final value in ShowcaseVariant.values)
+                          DropdownMenuItem(
+                            value: value,
+                            child: Text(value.label),
+                          ),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) onVariantChanged(value);
+                      },
+                    ),
+                  ),
+                )
+                : SegmentedButton<ShowcaseVariant>(
+                  key: const ValueKey('variant-selector'),
+                  segments: <ButtonSegment<ShowcaseVariant>>[
+                    for (final value in ShowcaseVariant.values)
+                      ButtonSegment<ShowcaseVariant>(
+                        value: value,
+                        label: Text(value.label),
+                      ),
+                  ],
+                  selected: <ShowcaseVariant>{variant},
+                  onSelectionChanged:
+                      (values) => onVariantChanged(values.single),
+                );
+        return Material(
+          color: Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            child:
+                narrow
+                    ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [brand, const SizedBox(height: 16), selector],
+                    )
+                    : Row(
+                      children: [
+                        Expanded(child: brand),
+                        const SizedBox(width: 24),
+                        selector,
+                      ],
+                    ),
+          ),
+        );
+      },
     );
   }
 }
@@ -317,47 +361,55 @@ class _VariantSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                spec.title,
-                key: ValueKey('variant-title-${spec.variant.name}'),
-                style: const TextStyle(
-                  fontSize: 26,
-                  height: 1.15,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
-                ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final narrow = constraints.maxWidth < 700;
+        final description = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              spec.title,
+              key: ValueKey('variant-title-${spec.variant.name}'),
+              style: const TextStyle(
+                fontSize: 26,
+                height: 1.15,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
               ),
-              const SizedBox(height: 5),
-              Text(
-                spec.description,
-                style: const TextStyle(color: Color(0xFF66706D)),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              spec.description,
+              style: const TextStyle(color: Color(0xFF66706D)),
+            ),
+          ],
+        );
+        final props = Wrap(
+          alignment: narrow ? WrapAlignment.start : WrapAlignment.end,
+          spacing: 7,
+          runSpacing: 7,
+          children: [
+            for (final prop in spec.props)
+              Chip(
+                visualDensity: VisualDensity.compact,
+                label: Text(prop, style: const TextStyle(fontSize: 11)),
               ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 20),
-        Flexible(
-          child: Wrap(
-            alignment: WrapAlignment.end,
-            spacing: 7,
-            runSpacing: 7,
-            children: [
-              for (final prop in spec.props)
-                Chip(
-                  visualDensity: VisualDensity.compact,
-                  label: Text(prop, style: const TextStyle(fontSize: 11)),
-                ),
-            ],
-          ),
-        ),
-      ],
+          ],
+        );
+        return narrow
+            ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [description, const SizedBox(height: 12), props],
+            )
+            : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: description),
+                const SizedBox(width: 20),
+                Flexible(child: props),
+              ],
+            );
+      },
     );
   }
 }
@@ -636,8 +688,8 @@ Widget _supportHeader(
 ) {
   return Container(
     key: const ValueKey('support-header'),
-    height: 72,
-    padding: const EdgeInsets.symmetric(horizontal: 18),
+    constraints: const BoxConstraints(minHeight: 72),
+    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
     decoration: const BoxDecoration(
       color: Color(0xFF2E2440),
       border: Border(bottom: BorderSide(color: Color(0xFF4A3D61))),
@@ -651,6 +703,7 @@ Widget _supportHeader(
         const SizedBox(width: 11),
         Expanded(
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

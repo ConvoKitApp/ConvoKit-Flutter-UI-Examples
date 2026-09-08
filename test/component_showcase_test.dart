@@ -109,4 +109,49 @@ void main() {
       findsOneWidget,
     );
   });
+
+  for (final width in <double>[320, 390, 768, 1440]) {
+    for (final variant in ShowcaseVariant.values) {
+      testWidgets('${variant.name} remains usable at width $width', (
+        tester,
+      ) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = Size(width, 844);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.view.resetPhysicalSize);
+        await tester.pumpWidget(ComponentShowcaseApp(initialVariant: variant));
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        final title = tester.getRect(find.text('ConvoKit UI components'));
+        expect(title.height, lessThan(70));
+        expect(title.left, greaterThanOrEqualTo(0));
+        expect(title.right, lessThanOrEqualTo(width));
+        final selector = find.byKey(const ValueKey('variant-selector'));
+        final selectorRect = tester.getRect(selector);
+        expect(selectorRect.left, greaterThanOrEqualTo(0));
+        expect(selectorRect.right, lessThanOrEqualTo(width));
+        expect(selectorRect.bottom, lessThan(220));
+
+        if (width < 900) {
+          await tester.tap(selector);
+          await tester.pumpAndSettle();
+          final next = ShowcaseVariant.values[(variant.index + 1) % 3];
+          await tester.tap(find.text(next.label).last);
+          await tester.pumpAndSettle();
+          expect(
+            find.byKey(ValueKey('conversation-list-${next.name}')),
+            findsOneWidget,
+          );
+          expect(tester.takeException(), isNull);
+        }
+
+        final chat = find.text('CHAT VIEW');
+        await tester.ensureVisible(chat);
+        await tester.pumpAndSettle();
+        expect(tester.getRect(chat).top, lessThan(844));
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
 }

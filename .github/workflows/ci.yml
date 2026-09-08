@@ -27,3 +27,9 @@ jobs:
 
       - name: Test
         run: flutter test
+
+      - name: Build component showcase for web
+        run: flutter build web --release
+
+      - name: Build live example for web
+        run: flutter build web --release -t lib/live_example.dart --output build/web-live

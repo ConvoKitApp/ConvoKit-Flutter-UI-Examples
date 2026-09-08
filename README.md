@@ -21,6 +21,17 @@ Use the selector in the app to compare the configurations. On Flutter web,
 append `?variant=standard`, `?variant=branded`, or `?variant=compact` to open a
 specific configuration.
 
+The web runner is checked in; no `flutter create` step is needed. To produce a
+static build of the fixture-only showcase:
+
+```bash
+flutter build web --release
+```
+
+Serve `build/web` through an HTTP server. The showcase does not issue tokens or
+contact a ConvoKit backend. For hosting below a subdirectory, pass the matching
+`--base-href=/your/path/` when building.
+
 ### Standard components
 
 ![Standard ConvoKit conversation list and chat components](doc/screenshots/standard-components.jpg)
@@ -72,4 +83,10 @@ Never put a ConvoKit client secret in Flutter application code or
 dart format --output=none --set-exit-if-changed lib test
 flutter analyze
 flutter test
+flutter build web --release
+flutter build web --release -t lib/live_example.dart --output build/web-live
 ```
+
+CI compiles both entry points. Without the live configuration defines, the
+second build displays configuration help and does not connect; compilation is
+not a live backend or Realtime acceptance test.
