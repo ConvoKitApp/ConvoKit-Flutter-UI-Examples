@@ -47,6 +47,7 @@ void main() {
     expect(find.byKey(const ValueKey('support-header')), findsOneWidget);
     expect(find.byKey(const ValueKey('support-ticket')), findsOneWidget);
     expect(find.byKey(const ValueKey('support-read-receipt')), findsWidgets);
+    expect(find.text('Read by Alex Rivera'), findsWidgets);
     expect(find.byKey(const ValueKey('support-composer')), findsOneWidget);
     expect(find.text('Priority support · SLA 18 min'), findsOneWidget);
     expect(find.text('Alex Rivera is typing…'), findsOneWidget);

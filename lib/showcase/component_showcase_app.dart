@@ -223,8 +223,11 @@ class _ShowcasePageState extends State<_ShowcasePage> {
         _showNotice('Opened ${attachment['name'] ?? 'attachment'}');
       },
       typingUserIds: spec.typingUserIds,
-      readAtByUserId: <String, DateTime>{
-        'alex': _showcaseNow.add(const Duration(minutes: 2)),
+      readPositionByUserId: <String, ReadPosition>{
+        'alex': ReadPosition(
+          messageId: _showcaseMessages.last.id,
+          createdAt: _showcaseMessages.last.createdAt,
+        ),
       },
       reverseMessages: spec.reverseMessages,
       headerBuilder: spec.headerBuilder,
@@ -525,7 +528,7 @@ _VariantSpec _specFor(ShowcaseVariant variant) => switch (variant) {
     props: <String>[
       'onRefresh',
       'onAddAttachment',
-      'readAtByUserId',
+      'readPositionByUserId',
       'reverseMessages: true',
     ],
     primary: Color(0xFF148F78),
@@ -787,15 +790,22 @@ Widget _supportReceipt(
   Message message,
   Set<String> readerIds,
 ) {
-  return const Padding(
-    key: ValueKey('support-read-receipt'),
-    padding: EdgeInsets.only(top: 4, right: 4),
+  final readers = <String>[
+    for (final participant in _showcaseParticipants)
+      if (readerIds.contains(participant.appUserId)) participant.name,
+  ];
+  return Padding(
+    key: const ValueKey('support-read-receipt'),
+    padding: const EdgeInsets.only(top: 4, right: 4),
     child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(Icons.done_all_rounded, size: 13, color: Color(0xFF6750A4)),
-        SizedBox(width: 4),
-        Text('Read by Alex Rivera', style: TextStyle(fontSize: 10)),
+        const Icon(Icons.done_all_rounded, size: 13, color: Color(0xFF6750A4)),
+        const SizedBox(width: 4),
+        Text(
+          'Read by ${readers.join(', ')}',
+          style: const TextStyle(fontSize: 10),
+        ),
       ],
     ),
   );

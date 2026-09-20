@@ -36,7 +36,7 @@ contact a ConvoKit backend. For hosting below a subdirectory, pass the matching
 
 ![Standard ConvoKit conversation list and chat components](doc/screenshots/standard-components.jpg)
 
-Package defaults plus `onRefresh`, `onAddAttachment`, `readAtByUserId`, and
+Package defaults plus `onRefresh`, `onAddAttachment`, `readPositionByUserId`, and
 `reverseMessages: true`.
 
 ### Branded customer support
