@@ -184,12 +184,14 @@ class _ShowcasePageState extends State<_ShowcasePage> {
     return ConvoKitConversationListView(
       key: ValueKey('conversation-list-${widget.variant.name}'),
       conversations: _showcaseConversations,
+      summaries: _showcaseSummaries,
+      currentUserId: _currentUserId,
       onConversationSelected: (conversation) {
         setState(() => _selectedConversation = conversation);
       },
       onRefresh: () async {},
       padding: spec.listPadding,
-      itemBuilder: spec.listItemBuilder,
+      rowBuilder: spec.listRowBuilder,
       separatorBuilder: (_, __) => SizedBox(height: spec.listSpacing),
       scrollThreshold: 120,
     );
@@ -465,14 +467,6 @@ class _ComponentFrame extends StatelessWidget {
   }
 }
 
-typedef _ListItemBuilder =
-    Widget Function(
-      BuildContext context,
-      Conversation conversation,
-      int index,
-      VoidCallback onTap,
-    );
-
 class _VariantSpec {
   const _VariantSpec({
     required this.variant,
@@ -484,7 +478,7 @@ class _VariantSpec {
     this.listWidth = 340,
     this.listPadding = const EdgeInsets.all(12),
     this.listSpacing = 8,
-    this.listItemBuilder,
+    this.listRowBuilder,
     this.headerBuilder,
     this.messageBuilder,
     this.mediaBlockBuilder,
@@ -506,7 +500,7 @@ class _VariantSpec {
   final double listWidth;
   final EdgeInsetsGeometry listPadding;
   final double listSpacing;
-  final _ListItemBuilder? listItemBuilder;
+  final ConvoKitInboxItemBuilder? listRowBuilder;
   final ConvoKitConversationHeaderBuilder? headerBuilder;
   final ConvoKitMessageItemBuilder? messageBuilder;
   final ConvoKitMediaBlockBuilder? mediaBlockBuilder;
@@ -524,8 +518,10 @@ _VariantSpec _specFor(ShowcaseVariant variant) => switch (variant) {
     variant: ShowcaseVariant.standard,
     title: '1 · Standard components',
     description:
-        'Default list rows, header, bubbles, receipts, attachments and composer.',
+        'Default list rows with previews and unread badges, header, bubbles, receipts, attachments and composer.',
     props: <String>[
+      'summaries',
+      'currentUserId',
       'onRefresh',
       'onAddAttachment',
       'readPositionByUserId',
@@ -540,7 +536,7 @@ _VariantSpec _specFor(ShowcaseVariant variant) => switch (variant) {
     description:
         'A purple support workspace with custom rows, header, ticket card, receipt and composer.',
     props: const <String>[
-      'itemBuilder',
+      'rowBuilder',
       'headerBuilder',
       'mediaBlockBuilder',
       'readReceiptBuilder',
@@ -561,7 +557,7 @@ _VariantSpec _specFor(ShowcaseVariant variant) => switch (variant) {
       cornerRadius: 18,
       avatarRadius: 21,
     ),
-    listItemBuilder: _supportListItem,
+    listRowBuilder: _supportListItem,
     headerBuilder: _supportHeader,
     mediaBlockBuilder: _supportMedia,
     readReceiptBuilder: _supportReceipt,
@@ -600,7 +596,7 @@ _VariantSpec _specFor(ShowcaseVariant variant) => switch (variant) {
     listWidth: 300,
     listPadding: const EdgeInsets.all(8),
     listSpacing: 3,
-    listItemBuilder: _compactListItem,
+    listRowBuilder: _compactListItem,
     headerBuilder: _compactHeader,
     messageBuilder: _compactMessage,
     composerBuilder: _compactComposer,
@@ -614,14 +610,24 @@ _VariantSpec _specFor(ShowcaseVariant variant) => switch (variant) {
 
 Widget _supportListItem(
   BuildContext context,
-  Conversation conversation,
-  int index,
+  ConvoKitInboxRow row,
   VoidCallback onTap,
 ) {
-  final unread = index == 0 ? 2 : 0;
+  final conversation = row.conversation;
+  final summary = row.summary;
+  final unreadCount = summary?.unreadCount ?? 0;
+  final unreadCapped = summary?.unreadCountCapped ?? false;
+  final unread = unreadCount > 0 || unreadCapped;
+  final preview =
+      convoKitInboxPreview(
+        conversation: conversation,
+        summary: summary,
+        currentUserId: row.currentUserId,
+      ) ??
+      'No messages yet';
   return Material(
     key: ValueKey('support-row-${conversation.id}'),
-    color: index == 0 ? const Color(0xFFF0EAFF) : Colors.white,
+    color: unread ? const Color(0xFFF0EAFF) : Colors.white,
     borderRadius: BorderRadius.circular(16),
     child: InkWell(
       borderRadius: BorderRadius.circular(16),
@@ -648,7 +654,9 @@ Widget _supportListItem(
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    index == 0 ? 'Waiting for your reply' : 'Last reply today',
+                    preview,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: Color(0xFF716A7C),
                       fontSize: 12,
@@ -657,24 +665,11 @@ Widget _supportListItem(
                 ],
               ),
             ),
-            if (unread > 0)
-              Container(
+            if (unread)
+              ConvoKitUnreadBadge(
                 key: const ValueKey('support-unread-badge'),
-                width: 23,
-                height: 23,
-                alignment: Alignment.center,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF6750A4),
-                  shape: BoxShape.circle,
-                ),
-                child: Text(
-                  '$unread',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
+                unreadCount: unreadCount,
+                capped: unreadCapped,
               ),
           ],
         ),
@@ -856,10 +851,13 @@ Widget _supportComposer(
 
 Widget _compactListItem(
   BuildContext context,
-  Conversation conversation,
-  int index,
+  ConvoKitInboxRow row,
   VoidCallback onTap,
 ) {
+  final conversation = row.conversation;
+  final summary = row.summary;
+  final unread =
+      summary != null && (summary.unreadCount > 0 || summary.unreadCountCapped);
   return Material(
     color: Colors.transparent,
     child: ListTile(
@@ -883,9 +881,29 @@ Widget _compactListItem(
         style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
       ),
       trailing:
-          index == 0
-              ? const Icon(Icons.circle, size: 8, color: Color(0xFF2F8A72))
-              : null,
+          summary == null
+              ? null
+              : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (unread) ...[
+                    const Icon(
+                      Icons.circle,
+                      key: ValueKey('compact-unread-dot'),
+                      size: 8,
+                      color: Color(0xFF2F8A72),
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                  Text(
+                    convoKitInboxTimeLabel(summary.activityAt),
+                    style: const TextStyle(
+                      fontSize: 9,
+                      color: Color(0xFF7B8582),
+                    ),
+                  ),
+                ],
+              ),
     ),
   );
 }
@@ -1099,6 +1117,49 @@ const _showcaseParticipants = <Participant>[
     role: 'member',
   ),
 ];
+
+/// Inbox data for every showcase room, shaped like the entries of
+/// `GET /api/v1/inbox`: the newest message, the unread count and the activity
+/// time. The first room is the only unread one.
+final _showcaseSummaries = <String, InboxSummary>{
+  'launch-room': InboxSummary(
+    latestMessage: _showcaseMessages.last,
+    unreadCount: 2,
+    activityAt: _showcaseMessages.last.createdAt,
+  ),
+  'customer-ops': InboxSummary(
+    latestMessage: Message(
+      id: 'customer-ops-latest',
+      conversationId: 'customer-ops',
+      senderId: 'alex',
+      text: 'Refund approved, closing the ticket.',
+      createdAt: _showcaseNow.subtract(const Duration(minutes: 18)),
+    ),
+    activityAt: _showcaseNow.subtract(const Duration(minutes: 18)),
+  ),
+  'design-review': InboxSummary(
+    latestMessage: Message(
+      id: 'design-review-latest',
+      conversationId: 'design-review',
+      senderId: 'jordan',
+      media: const <Map<String, dynamic>>[
+        <String, dynamic>{'type': 'image', 'name': 'onboarding-v3.png'},
+      ],
+      createdAt: _showcaseNow.subtract(const Duration(hours: 2)),
+    ),
+    activityAt: _showcaseNow.subtract(const Duration(hours: 2)),
+  ),
+  'incident-room': InboxSummary(
+    latestMessage: Message(
+      id: 'incident-room-latest',
+      conversationId: 'incident-room',
+      senderId: _currentUserId,
+      text: 'Postmortem scheduled for Thursday.',
+      createdAt: _showcaseNow.subtract(const Duration(hours: 6)),
+    ),
+    activityAt: _showcaseNow.subtract(const Duration(hours: 6)),
+  ),
+};
 
 final _showcaseMessages = <Message>[
   Message(

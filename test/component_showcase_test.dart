@@ -1,3 +1,4 @@
+import 'package:convokit_flutter_ui/convokit_flutter_ui.dart';
 import 'package:convokit_flutter_ui_examples/showcase/component_showcase_app.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -31,6 +32,21 @@ void main() {
     expect(find.text('launch-handoff.pdf'), findsOneWidget);
     expect(find.widgetWithText(TextField, 'Write a message'), findsOneWidget);
 
+    // Default rows render the summaries: previews, times and the unread badge.
+    expect(
+      find.text('You: I linked this conversation to the support case.'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Alex Rivera: Refund approved, closing the ticket.'),
+      findsOneWidget,
+    );
+    expect(find.text('Jordan Lee: Photo'), findsOneWidget);
+    final badge = find.byType(ConvoKitUnreadBadge);
+    expect(badge, findsOneWidget);
+    expect(tester.widget<ConvoKitUnreadBadge>(badge).unreadCount, 2);
+    expect(find.text('2'), findsOneWidget);
+
     await tester.tap(find.text('Customer operations'));
     await tester.pump();
 
@@ -43,7 +59,23 @@ void main() {
   ) async {
     await pumpShowcase(tester, ShowcaseVariant.branded);
 
-    expect(find.byKey(const ValueKey('support-unread-badge')), findsOneWidget);
+    // The first room is the only unread one; its custom row reads the count
+    // and the preview from the summary.
+    final badge = find.byKey(const ValueKey('support-unread-badge'));
+    expect(badge, findsOneWidget);
+    expect(tester.widget<ConvoKitUnreadBadge>(badge).unreadCount, 2);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('support-row-launch-room')),
+        matching: badge,
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.text('You: I linked this conversation to the support case.'),
+      findsOneWidget,
+    );
+    expect(find.text('Jordan Lee: Photo'), findsOneWidget);
     expect(find.byKey(const ValueKey('support-header')), findsOneWidget);
     expect(find.byKey(const ValueKey('support-ticket')), findsOneWidget);
     expect(find.byKey(const ValueKey('support-read-receipt')), findsWidgets);
@@ -81,6 +113,16 @@ void main() {
 
     expect(
       find.byKey(const ValueKey('compact-row-launch-room')),
+      findsOneWidget,
+    );
+    // Only the unread first room shows the dot; every row shows its time.
+    final dot = find.byKey(const ValueKey('compact-unread-dot'));
+    expect(dot, findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('compact-row-launch-room')),
+        matching: dot,
+      ),
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('compact-header')), findsOneWidget);

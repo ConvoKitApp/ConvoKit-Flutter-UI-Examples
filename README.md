@@ -36,22 +36,25 @@ contact a ConvoKit backend. For hosting below a subdirectory, pass the matching
 
 ![Standard ConvoKit conversation list and chat components](doc/screenshots/standard-components.jpg)
 
-Package defaults plus `onRefresh`, `onAddAttachment`, `readPositionByUserId`, and
-`reverseMessages: true`.
+Package defaults: the rows render the latest-message preview, activity time,
+and unread badge from `summaries` and `currentUserId`, plus `onRefresh`,
+`onAddAttachment`, `readPositionByUserId`, and `reverseMessages: true`.
 
 ### Branded customer support
 
 ![Branded ConvoKit customer support interface](doc/screenshots/branded-support.jpg)
 
-A support treatment built with `itemBuilder`, `headerBuilder`,
-`mediaBlockBuilder`, `readReceiptBuilder`, and `composerBuilder`.
+A support treatment built with `rowBuilder` (custom rows that read the preview
+and unread count from `ConvoKitInboxRow`), `headerBuilder`, `mediaBlockBuilder`,
+`readReceiptBuilder`, and `composerBuilder`.
 
 ### Compact operations
 
 ![Compact ConvoKit operations interface](doc/screenshots/compact-operations.jpg)
 
-A dense dashboard built with custom padding, separators, message rows, typing
-indicator, composer, and `reverseMessages: false`.
+A dense dashboard built with custom padding, separators, `rowBuilder` rows
+that show the unread dot and activity time, message rows, typing indicator,
+composer, and `reverseMessages: false`.
 
 The complete configuration is in
 [`lib/showcase/component_showcase_app.dart`](lib/showcase/component_showcase_app.dart),
@@ -61,7 +64,9 @@ and its widget tests are in
 ## Live SDK-backed example
 
 [`lib/live_example.dart`](lib/live_example.dart) demonstrates the minimal
-SDK-backed conversation list and selected conversation flow. It expects a
+SDK-backed conversation list and selected conversation flow. The list loads
+`GET /api/v1/inbox` pages through the SDK and renders previews, activity times,
+and unread badges by itself, refreshing on `inbox_activity`. It expects a
 public client ID and a token endpoint that keeps the client secret on its
 server:
 
