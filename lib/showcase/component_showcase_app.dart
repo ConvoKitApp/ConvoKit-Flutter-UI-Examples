@@ -90,6 +90,11 @@ class _ShowcasePage extends StatefulWidget {
 class _ShowcasePageState extends State<_ShowcasePage> {
   late Conversation _selectedConversation = _showcaseConversations.first;
   late List<Message> _messages = List<Message>.of(_showcaseMessages);
+  // Edit mode is owned by the host of a controlled view: the snapshot the
+  // user picked with "Edit message", or null. The view prefills its composer
+  // from it and routes the composer's send action to `onSaveEdit` while it
+  // is set.
+  Message? _editingMessage;
 
   @override
   void didUpdateWidget(covariant _ShowcasePage oldWidget) {
@@ -97,6 +102,7 @@ class _ShowcasePageState extends State<_ShowcasePage> {
     if (oldWidget.variant != widget.variant) {
       _selectedConversation = _showcaseConversations.first;
       _messages = List<Message>.of(_showcaseMessages);
+      _editingMessage = null;
     }
   }
 
@@ -213,11 +219,21 @@ class _ShowcasePageState extends State<_ShowcasePage> {
               senderId: _currentUserId,
               text: text,
               createdAt: DateTime.now().toUtc(),
+              revision: 0,
             ),
           ];
         });
         return true;
       },
+      // The package decides which rows offer "Edit message" / "Delete
+      // message" (the connected user's own confirmed rows, never a READ
+      // role) and asks "Delete this message?" itself; these fixture callbacks
+      // stand in for the SDK-backed controller and apply the result locally.
+      editingMessage: _editingMessage,
+      onEditMessage: (message) => setState(() => _editingMessage = message),
+      onSaveEdit: _saveEdit,
+      onCancelEdit: _cancelEditing,
+      onDeleteMessage: _deleteMessage,
       onBack: spec.showBack ? () => _showNotice('Back callback') : null,
       onRefresh: spec.showRefresh ? () {} : null,
       onAddAttachment: () => _showNotice('Attachment callback'),
@@ -236,7 +252,23 @@ class _ShowcasePageState extends State<_ShowcasePage> {
       messageBuilder: spec.messageBuilder,
       mediaBlockBuilder: spec.mediaBlockBuilder,
       readReceiptBuilder: spec.readReceiptBuilder,
-      composerBuilder: spec.composerBuilder,
+      // The package's `ConvoKitComposerBuilder` is unchanged in 0.8.0: its
+      // `send` saves while `editingMessage` is set and sends otherwise. The
+      // custom composers only need the host's edit state for their own
+      // banner, so the page hands it to them alongside the package arguments.
+      composerBuilder:
+          spec.composerBuilder == null
+              ? null
+              : (context, controller, isSending, send, addAttachment) =>
+                  spec.composerBuilder!(
+                    context,
+                    controller,
+                    isSending,
+                    send,
+                    addAttachment,
+                    _editingMessage,
+                    _cancelEditing,
+                  ),
       typingIndicatorBuilder: spec.typingIndicatorBuilder,
       displayNameForUser:
           (id) => switch (id) {
@@ -245,6 +277,49 @@ class _ShowcasePageState extends State<_ShowcasePage> {
             _ => id,
           },
     );
+  }
+
+  // What the backend does on a successful `PATCH /api/v1/messages/:id/own`:
+  // the trimmed text replaces the message text (empty clears the caption of
+  // a message with attachments), the attachments stay and `revision` moves
+  // by one, so the row renders the package's "Edited" caption.
+  FutureOr<bool> _saveEdit(Message message, String text) {
+    final trimmed = text.trim();
+    setState(() {
+      _messages = <Message>[
+        for (final row in _messages)
+          if (row.id == message.id)
+            Message(
+              id: row.id,
+              clientMessageId: row.clientMessageId,
+              conversationId: row.conversationId,
+              senderId: row.senderId,
+              text: trimmed.isEmpty ? null : trimmed,
+              media: row.media,
+              createdAt: row.createdAt,
+              updatedAt: DateTime.now().toUtc(),
+              revision: row.revision + 1,
+            )
+          else
+            row,
+      ];
+      _editingMessage = null;
+    });
+    return true;
+  }
+
+  void _cancelEditing() => setState(() => _editingMessage = null);
+
+  // Runs after the package's "Delete this message?" confirmation.
+  FutureOr<bool> _deleteMessage(Message message) {
+    setState(() {
+      _messages = <Message>[
+        for (final row in _messages)
+          if (row.id != message.id) row,
+      ];
+      if (_editingMessage?.id == message.id) _editingMessage = null;
+    });
+    return true;
   }
 
   void _showNotice(String message) {
@@ -467,6 +542,21 @@ class _ComponentFrame extends StatelessWidget {
   }
 }
 
+/// A showcase composer: the package's [ConvoKitComposerBuilder] arguments plus
+/// the host-owned edit state (the message being edited, or null, and the
+/// cancel action), which a custom composer renders as its own banner. The
+/// package typedef itself is unchanged; the page adapts one to the other.
+typedef _ShowcaseComposerBuilder =
+    Widget Function(
+      BuildContext context,
+      TextEditingController controller,
+      bool isSending,
+      VoidCallback send,
+      VoidCallback? addAttachment,
+      Message? editing,
+      VoidCallback cancelEdit,
+    );
+
 class _VariantSpec {
   const _VariantSpec({
     required this.variant,
@@ -505,7 +595,7 @@ class _VariantSpec {
   final ConvoKitMessageItemBuilder? messageBuilder;
   final ConvoKitMediaBlockBuilder? mediaBlockBuilder;
   final ConvoKitReadReceiptBuilder? readReceiptBuilder;
-  final ConvoKitComposerBuilder? composerBuilder;
+  final _ShowcaseComposerBuilder? composerBuilder;
   final ConvoKitTypingIndicatorBuilder? typingIndicatorBuilder;
   final Set<String> typingUserIds;
   final bool reverseMessages;
@@ -518,7 +608,7 @@ _VariantSpec _specFor(ShowcaseVariant variant) => switch (variant) {
     variant: ShowcaseVariant.standard,
     title: '1 · Standard components',
     description:
-        'Default list rows with previews, unread badges and the mark-unread dot, header, bubbles, receipts, attachments and composer.',
+        'Default list rows with previews, unread badges and the mark-unread dot, header, bubbles with the "Edited" caption and long-press edit/delete actions, receipts, attachments and composer with its edit mode.',
     props: <String>[
       'summaries',
       'currentUserId',
@@ -526,6 +616,10 @@ _VariantSpec _specFor(ShowcaseVariant variant) => switch (variant) {
       'onAddAttachment',
       'readPositionByUserId',
       'reverseMessages: true',
+      'editingMessage',
+      'onEditMessage',
+      'onSaveEdit',
+      'onDeleteMessage',
     ],
     primary: Color(0xFF148F78),
     theme: ConvoKitUiThemeData.light(),
@@ -534,7 +628,7 @@ _VariantSpec _specFor(ShowcaseVariant variant) => switch (variant) {
     variant: ShowcaseVariant.branded,
     title: '2 · Branded customer support',
     description:
-        'A purple support workspace with custom rows (count badge or mark-unread dot), header, ticket card, receipt and composer.',
+        'A purple support workspace with custom rows (count badge or mark-unread dot), header, ticket card, receipt and a composer that shows its own banner while a message is edited.',
     props: const <String>[
       'rowBuilder',
       'headerBuilder',
@@ -570,7 +664,7 @@ _VariantSpec _specFor(ShowcaseVariant variant) => switch (variant) {
     variant: ShowcaseVariant.compact,
     title: '3 · Compact operations view',
     description:
-        'Dense list rows and message rendering for dashboards with limited space.',
+        'Dense list rows and message rendering (with the "Edited" caption from Message.isEdited) for dashboards with limited space.',
     props: const <String>[
       'padding',
       'separatorBuilder',
@@ -810,43 +904,82 @@ Widget _supportReceipt(
   );
 }
 
+// The package prefilled `controller` with the edited text and `send` saves
+// while `editing` is set; this composer only adds its own banner and label.
 Widget _supportComposer(
   BuildContext context,
   TextEditingController controller,
   bool isSending,
   VoidCallback send,
   VoidCallback? addAttachment,
+  Message? editing,
+  VoidCallback cancelEdit,
 ) {
   return Container(
     key: const ValueKey('support-composer'),
     padding: const EdgeInsets.all(12),
     color: Colors.white,
-    child: Row(
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        IconButton(
-          tooltip: 'Attach to ticket',
-          onPressed: addAttachment,
-          icon: const Icon(Icons.attach_file_rounded),
-        ),
-        Expanded(
-          child: TextField(
-            controller: controller,
-            onSubmitted: (_) => send(),
-            decoration: InputDecoration(
-              hintText: 'Reply to customer…',
-              filled: true,
-              fillColor: const Color(0xFFF4F0FA),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(22),
-                borderSide: BorderSide.none,
-              ),
+        if (editing != null)
+          Padding(
+            key: const ValueKey('support-edit-banner'),
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.edit_outlined,
+                  size: 16,
+                  color: Color(0xFF6750A4),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Editing your reply · ${editing.text ?? 'attachment caption'}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF514A5C),
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: isSending ? null : cancelEdit,
+                  child: const Text('Cancel'),
+                ),
+              ],
             ),
           ),
-        ),
-        const SizedBox(width: 8),
-        FilledButton(
-          onPressed: isSending ? null : send,
-          child: const Text('Send'),
+        Row(
+          children: [
+            IconButton(
+              tooltip: 'Attach to ticket',
+              onPressed: addAttachment,
+              icon: const Icon(Icons.attach_file_rounded),
+            ),
+            Expanded(
+              child: TextField(
+                controller: controller,
+                onSubmitted: (_) => send(),
+                decoration: InputDecoration(
+                  hintText: 'Reply to customer…',
+                  filled: true,
+                  fillColor: const Color(0xFFF4F0FA),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(22),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            FilledButton(
+              onPressed: isSending ? null : send,
+              child: Text(editing == null ? 'Send' : 'Save'),
+            ),
+          ],
         ),
       ],
     ),
@@ -996,6 +1129,19 @@ Widget _compactMessage(
           ),
         ),
         const SizedBox(width: 8),
+        // `Message.isEdited` (revision > 0) is the package's edited signal;
+        // the row never derives it from timestamps.
+        if (message.isEdited) ...[
+          const Text(
+            'Edited',
+            style: TextStyle(
+              fontSize: 9,
+              fontStyle: FontStyle.italic,
+              color: Color(0xFF7B8582),
+            ),
+          ),
+          const SizedBox(width: 4),
+        ],
         Text(
           isConvoKitPendingMessage(message)
               ? 'Sending…'
@@ -1018,6 +1164,8 @@ Widget _compactComposer(
   bool isSending,
   VoidCallback send,
   VoidCallback? addAttachment,
+  Message? editing,
+  VoidCallback cancelEdit,
 ) {
   return Container(
     key: const ValueKey('compact-composer'),
@@ -1029,6 +1177,18 @@ Widget _compactComposer(
     ),
     child: Row(
       children: [
+        // A dense composer marks edit mode inline: a chip in place of the
+        // hint plus a cancel action; `send` saves through the package.
+        if (editing != null) ...[
+          InputChip(
+            key: const ValueKey('compact-edit-chip'),
+            visualDensity: VisualDensity.compact,
+            label: const Text('Editing', style: TextStyle(fontSize: 10)),
+            deleteButtonTooltipMessage: 'Cancel edit',
+            onDeleted: isSending ? null : cancelEdit,
+          ),
+          const SizedBox(width: 6),
+        ],
         Expanded(
           child: TextField(
             controller: controller,
@@ -1041,9 +1201,13 @@ Widget _compactComposer(
           ),
         ),
         IconButton.filled(
-          tooltip: 'Send compact message',
+          tooltip:
+              editing == null ? 'Send compact message' : 'Save compact message',
           onPressed: isSending ? null : send,
-          icon: const Icon(Icons.arrow_upward_rounded, size: 18),
+          icon: Icon(
+            editing == null ? Icons.arrow_upward_rounded : Icons.check_rounded,
+            size: 18,
+          ),
         ),
       ],
     ),
@@ -1150,6 +1314,7 @@ final _showcaseSummaries = <String, InboxSummary>{
       senderId: 'alex',
       text: 'Refund approved, closing the ticket.',
       createdAt: _showcaseNow.subtract(const Duration(minutes: 18)),
+      revision: 0,
     ),
     activityAt: _showcaseNow.subtract(const Duration(minutes: 18)),
     isUnread: false,
@@ -1165,6 +1330,7 @@ final _showcaseSummaries = <String, InboxSummary>{
         <String, dynamic>{'type': 'image', 'name': 'onboarding-v3.png'},
       ],
       createdAt: _showcaseNow.subtract(const Duration(hours: 2)),
+      revision: 0,
     ),
     activityAt: _showcaseNow.subtract(const Duration(hours: 2)),
     isUnread: false,
@@ -1178,6 +1344,7 @@ final _showcaseSummaries = <String, InboxSummary>{
       senderId: _currentUserId,
       text: 'Postmortem scheduled for Thursday.',
       createdAt: _showcaseNow.subtract(const Duration(hours: 6)),
+      revision: 0,
     ),
     activityAt: _showcaseNow.subtract(const Duration(hours: 6)),
     isUnread: true,
@@ -1186,6 +1353,10 @@ final _showcaseSummaries = <String, InboxSummary>{
   ),
 };
 
+/// The open room's history, shaped like `GET /api/v1/messages` rows. Every
+/// row carries the server `revision` (0 as created, +1 per content edit); the
+/// connected user's second message was edited once, so `Message.isEdited` is
+/// true and the rows render the "Edited" caption beside its time.
 final _showcaseMessages = <Message>[
   Message(
     id: 'message-1',
@@ -1193,6 +1364,7 @@ final _showcaseMessages = <Message>[
     senderId: 'alex',
     text: 'The final launch checklist is ready for review.',
     createdAt: _showcaseNow.subtract(const Duration(minutes: 16)),
+    revision: 0,
   ),
   Message(
     id: 'message-2',
@@ -1200,6 +1372,8 @@ final _showcaseMessages = <Message>[
     senderId: _currentUserId,
     text: 'Great. I approved the copy and shared the release notes.',
     createdAt: _showcaseNow.subtract(const Duration(minutes: 11)),
+    updatedAt: _showcaseNow.subtract(const Duration(minutes: 9)),
+    revision: 1,
   ),
   Message(
     id: 'message-3',
@@ -1214,6 +1388,7 @@ final _showcaseMessages = <Message>[
       },
     ],
     createdAt: _showcaseNow.subtract(const Duration(minutes: 7)),
+    revision: 0,
   ),
   Message(
     id: 'message-4',
@@ -1224,5 +1399,6 @@ final _showcaseMessages = <Message>[
       <String, dynamic>{'type': 'ticket', 'name': 'Ticket CK-4821'},
     ],
     createdAt: _showcaseNow.subtract(const Duration(minutes: 3)),
+    revision: 0,
   ),
 ];

@@ -125,6 +125,12 @@ class _ConversationPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // The package's default rows and composer, bound to the room
+      // controller: the connected user's own confirmed rows offer "Edit
+      // message" / "Delete message" on a long press, the composer saves an
+      // edit with the revision captured when it began (a conflict reloads
+      // the row and keeps the draft), and a confirmed delete removes the row
+      // here and on other devices. Nothing to wire for that.
       body: ConvoKitConversation(
         conversationId: conversationId,
         onBack: () => Navigator.of(context).pop(),

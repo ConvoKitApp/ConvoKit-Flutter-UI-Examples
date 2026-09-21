@@ -17,6 +17,23 @@ void main() {
     await tester.pump();
   }
 
+  // The page scrolls and the reversed history clips its oldest rows, so
+  // every interaction first scrolls its target into view.
+  Future<void> pressAndSettle(
+    WidgetTester tester,
+    Finder target, {
+    bool long = false,
+  }) async {
+    await tester.ensureVisible(target);
+    await tester.pumpAndSettle();
+    if (long) {
+      await tester.longPress(target);
+    } else {
+      await tester.tap(target);
+    }
+    await tester.pumpAndSettle();
+  }
+
   testWidgets('standard view renders both package components with defaults', (
     tester,
   ) async {
@@ -31,6 +48,8 @@ void main() {
     expect(find.text('Customer operations'), findsOneWidget);
     expect(find.text('launch-handoff.pdf'), findsOneWidget);
     expect(find.widgetWithText(TextField, 'Write a message'), findsOneWidget);
+    // The fixture row with revision 1 renders the package's "Edited" caption.
+    expect(find.text('Edited'), findsOneWidget);
 
     // Default rows render the summaries: previews, times and the unread badge.
     expect(
@@ -81,6 +100,74 @@ void main() {
     expect(find.text('Customer operations'), findsNWidgets(2));
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'standard view edits and deletes own messages through the package rows '
+    'and composer',
+    (tester) async {
+      await pumpShowcase(tester, ShowcaseVariant.standard);
+      const original = 'I linked this conversation to the support case.';
+      const updated = 'I linked this conversation to the support case (v2).';
+      const earlier =
+          'Great. I approved the copy and shared the release notes.';
+      final field = find.byType(TextField);
+      expect(field, findsOneWidget);
+
+      // Another member's row offers no actions: the package decides.
+      await pressAndSettle(
+        tester,
+        find.text('The final launch checklist is ready for review.'),
+        long: true,
+      );
+      expect(find.text('Edit message'), findsNothing);
+      expect(find.text('Delete message'), findsNothing);
+
+      // A long press on an own confirmed row opens the package's sheet.
+      await pressAndSettle(tester, find.text(original), long: true);
+      expect(find.text('Edit message'), findsOneWidget);
+      expect(find.text('Delete message'), findsOneWidget);
+      await pressAndSettle(tester, find.text('Edit message'));
+
+      // `onEditMessage` set the host's editingMessage; the default composer
+      // shows its banner, prefills the field and offers Save.
+      expect(find.text('Editing message'), findsOneWidget);
+      expect(find.byTooltip('Cancel editing'), findsOneWidget);
+      expect(find.byTooltip('Save message'), findsOneWidget);
+      expect(find.byTooltip('Send message'), findsNothing);
+      expect(tester.widget<TextField>(field).controller?.text, original);
+
+      await tester.enterText(field, updated);
+      await pressAndSettle(tester, find.byTooltip('Save message'));
+
+      // `onSaveEdit` bumped the fixture's revision: the row shows the new
+      // text with the "Edited" caption and the composer left edit mode.
+      expect(find.text(updated), findsOneWidget);
+      expect(find.text(original), findsNothing);
+      expect(find.text('Edited'), findsNWidgets(2));
+      expect(find.text('Editing message'), findsNothing);
+      expect(find.byTooltip('Send message'), findsOneWidget);
+      expect(tester.widget<TextField>(field).controller?.text, isEmpty);
+
+      // Delete goes through the package's confirmation; Cancel keeps the row.
+      await pressAndSettle(tester, find.text(earlier), long: true);
+      await pressAndSettle(tester, find.text('Delete message'));
+      expect(find.text('Delete this message?'), findsOneWidget);
+      await pressAndSettle(tester, find.byTooltip('Cancel delete'));
+      expect(find.text('Delete this message?'), findsNothing);
+      expect(find.text(earlier), findsOneWidget);
+
+      await pressAndSettle(tester, find.text(earlier), long: true);
+      await pressAndSettle(tester, find.text('Delete message'));
+      await pressAndSettle(tester, find.byTooltip('Confirm delete'));
+
+      // `onDeleteMessage` removed the fixture row; only the freshly edited
+      // row still carries the caption.
+      expect(find.text(earlier), findsNothing);
+      expect(find.text('Edited'), findsOneWidget);
+      expect(find.text(updated), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('branded view applies every targeted builder and sends text', (
     tester,
@@ -146,6 +233,52 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'branded composer shows its own banner while a package row is edited',
+    (tester) async {
+      await pumpShowcase(tester, ShowcaseVariant.branded);
+      const original = 'I linked this conversation to the support case.';
+      const updated = 'Linked to the support case.';
+      final field = find.widgetWithText(TextField, 'Reply to customer…');
+      final banner = find.byKey(const ValueKey('support-edit-banner'));
+      await tester.ensureVisible(field);
+      await tester.enterText(field, 'unsent draft');
+
+      // Default rows are still the package's: the own row opens the sheet.
+      await pressAndSettle(tester, find.text(original), long: true);
+      await pressAndSettle(tester, find.text('Edit message'));
+
+      // The custom composer received the host's edit state through the
+      // page's adapter and renders its banner; the package prefilled the
+      // field after stashing the unsent draft.
+      expect(banner, findsOneWidget);
+      expect(find.textContaining('Editing your reply'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Save'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Send'), findsNothing);
+      expect(tester.widget<TextField>(field).controller?.text, original);
+
+      // The banner's Cancel clears the host state; the package restores the
+      // stashed draft.
+      await pressAndSettle(tester, find.widgetWithText(TextButton, 'Cancel'));
+      expect(banner, findsNothing);
+      expect(find.widgetWithText(FilledButton, 'Send'), findsOneWidget);
+      expect(tester.widget<TextField>(field).controller?.text, 'unsent draft');
+
+      // Saving goes through the same `send` the composer already uses.
+      await pressAndSettle(tester, find.text(original), long: true);
+      await pressAndSettle(tester, find.text('Edit message'));
+      await tester.enterText(field, updated);
+      await pressAndSettle(tester, find.widgetWithText(FilledButton, 'Save'));
+
+      expect(find.text(updated), findsOneWidget);
+      expect(find.text(original), findsNothing);
+      expect(find.text('Edited'), findsNWidgets(2));
+      expect(banner, findsNothing);
+      expect(tester.widget<TextField>(field).controller?.text, 'unsent draft');
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('compact view replaces rows, messages, typing and composer', (
     tester,
   ) async {
@@ -178,6 +311,16 @@ void main() {
     expect(find.byKey(const ValueKey('compact-header')), findsOneWidget);
     expect(
       find.byKey(const ValueKey('compact-message-message-1')),
+      findsOneWidget,
+    );
+    // Custom rows read `Message.isEdited`: only the revision-1 fixture row
+    // shows the caption.
+    expect(find.text('Edited'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('compact-message-message-2')),
+        matching: find.text('Edited'),
+      ),
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('compact-typing')), findsOneWidget);
