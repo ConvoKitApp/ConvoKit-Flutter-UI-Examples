@@ -38,23 +38,30 @@ contact a ConvoKit backend. For hosting below a subdirectory, pass the matching
 
 Package defaults: the rows render the latest-message preview, activity time,
 and unread badge from `summaries` and `currentUserId`, plus `onRefresh`,
-`onAddAttachment`, `readPositionByUserId`, and `reverseMessages: true`.
+`onAddAttachment`, `readPositionByUserId`, and `reverseMessages: true`. The
+fixtures carry the private "mark unread" fields (`isUnread`, `unreadMarkedAt`,
+`privateStateVersion`): one room has unread messages and shows the numeric
+badge, another was marked unread with nothing new in it, so the default row
+renders the package's numberless `ConvoKitUnreadDot` (announced as "Unread",
+never as a count of 0).
 
 ### Branded customer support
 
 ![Branded ConvoKit customer support interface](doc/screenshots/branded-support.jpg)
 
 A support treatment built with `rowBuilder` (custom rows that read the preview
-and unread count from `ConvoKitInboxRow`), `headerBuilder`, `mediaBlockBuilder`,
-`readReceiptBuilder`, and `composerBuilder`.
+and unread state from `ConvoKitInboxRow`: `ConvoKitUnreadBadge` for a count,
+`ConvoKitUnreadDot` for a marked room without one), `headerBuilder`,
+`mediaBlockBuilder`, `readReceiptBuilder`, and `composerBuilder`.
 
 ### Compact operations
 
 ![Compact ConvoKit operations interface](doc/screenshots/compact-operations.jpg)
 
 A dense dashboard built with custom padding, separators, `rowBuilder` rows
-that show the unread dot and activity time, message rows, typing indicator,
-composer, and `reverseMessages: false`.
+that show their own dot for any unread state (`isUnread`, a count, or a capped
+count) and the activity time, message rows, typing indicator, composer, and
+`reverseMessages: false`.
 
 The complete configuration is in
 [`lib/showcase/component_showcase_app.dart`](lib/showcase/component_showcase_app.dart),
@@ -66,9 +73,17 @@ and its widget tests are in
 [`lib/live_example.dart`](lib/live_example.dart) demonstrates the minimal
 SDK-backed conversation list and selected conversation flow. The list loads
 `GET /api/v1/inbox` pages through the SDK and renders previews, activity times,
-and unread badges by itself, refreshing on `inbox_activity`. It expects a
-public client ID and a token endpoint that keeps the client secret on its
-server:
+unread badges and the mark-unread dot by itself, refreshing on
+`inbox_activity`. The page owns the `ConvoKitConversationListController` so the
+open room's header (a `headerBuilder` app bar) can offer "Mark unread": it
+calls `markUnread(conversationId)` on that controller, which sends
+`POST /api/v1/conversations/:id/unread`, patches the row's summary from the
+response, and returns to the list, where the default row shows the dot. The
+room acknowledged itself with the private-state version captured when it
+opened, so the marker survives that room's later acknowledgements and clears
+the next time the room is opened; other devices refetch the list on
+`inbox_activity`. It expects a public client ID and a token endpoint that keeps
+the client secret on its server:
 
 ```bash
 flutter run -d chrome -t lib/live_example.dart \

@@ -47,6 +47,34 @@ void main() {
     expect(tester.widget<ConvoKitUnreadBadge>(badge).unreadCount, 2);
     expect(find.text('2'), findsOneWidget);
 
+    // The room the user marked unread (isUnread with a count of 0) gets the
+    // package's numberless dot, announced as "Unread", never as "0 unread".
+    final semantics = tester.ensureSemantics();
+    final dot = find.byType(ConvoKitUnreadDot);
+    expect(dot, findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.ancestor(
+          of: find.text('Incident room'),
+          matching: find.byType(ListTile),
+        ),
+        matching: dot,
+      ),
+      findsOneWidget,
+    );
+    expect(tester.getSemantics(dot).label, endsWith('Unread'));
+    expect(find.text('0'), findsNothing);
+    expect(find.bySemanticsLabel(RegExp(r'0 unread')), findsNothing);
+    expect(
+      tester.widget<Text>(find.text('Incident room')).style?.fontWeight,
+      FontWeight.w700,
+    );
+    expect(
+      tester.widget<Text>(find.text('Design review')).style?.fontWeight,
+      FontWeight.w600,
+    );
+    semantics.dispose();
+
     await tester.tap(find.text('Customer operations'));
     await tester.pump();
 
@@ -59,8 +87,8 @@ void main() {
   ) async {
     await pumpShowcase(tester, ShowcaseVariant.branded);
 
-    // The first room is the only unread one; its custom row reads the count
-    // and the preview from the summary.
+    // The first room is the only one with unread messages; its custom row
+    // reads the count and the preview from the summary.
     final badge = find.byKey(const ValueKey('support-unread-badge'));
     expect(badge, findsOneWidget);
     expect(tester.widget<ConvoKitUnreadBadge>(badge).unreadCount, 2);
@@ -71,6 +99,18 @@ void main() {
       ),
       findsOneWidget,
     );
+    // The marked room (isUnread, count 0) composes the package's dot instead.
+    final dot = find.byKey(const ValueKey('support-unread-dot'));
+    expect(dot, findsOneWidget);
+    expect(tester.widget(dot), isA<ConvoKitUnreadDot>());
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('support-row-incident-room')),
+        matching: dot,
+      ),
+      findsOneWidget,
+    );
+    expect(find.byType(ConvoKitUnreadBadge), findsOneWidget);
     expect(
       find.text('You: I linked this conversation to the support case.'),
       findsOneWidget,
@@ -115,15 +155,25 @@ void main() {
       find.byKey(const ValueKey('compact-row-launch-room')),
       findsOneWidget,
     );
-    // Only the unread first room shows the dot; every row shows its time.
+    // The dense rows show one dot for the room with unread messages and one
+    // for the room the user marked unread; every row shows its time.
     final dot = find.byKey(const ValueKey('compact-unread-dot'));
-    expect(dot, findsOneWidget);
+    expect(dot, findsNWidgets(2));
+    for (final id in <String>['launch-room', 'incident-room']) {
+      expect(
+        find.descendant(
+          of: find.byKey(ValueKey('compact-row-$id')),
+          matching: dot,
+        ),
+        findsOneWidget,
+      );
+    }
     expect(
       find.descendant(
-        of: find.byKey(const ValueKey('compact-row-launch-room')),
+        of: find.byKey(const ValueKey('compact-row-design-review')),
         matching: dot,
       ),
-      findsOneWidget,
+      findsNothing,
     );
     expect(find.byKey(const ValueKey('compact-header')), findsOneWidget);
     expect(

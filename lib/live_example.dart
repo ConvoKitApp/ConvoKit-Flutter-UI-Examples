@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:convokit_flutter/convokit_flutter.dart';
@@ -70,27 +71,90 @@ class _ExampleApp extends StatelessWidget {
   }
 }
 
-class _InboxPage extends StatelessWidget {
+class _InboxPage extends StatefulWidget {
   const _InboxPage();
+
+  @override
+  State<_InboxPage> createState() => _InboxPageState();
+}
+
+class _InboxPageState extends State<_InboxPage> {
+  // Owned here rather than by the list widget so the room screen can mark a
+  // conversation unread through the same controller that renders the list:
+  // the response patches that row's summary at once and the default row
+  // shows the numberless dot; other devices refetch on `inbox_activity`.
+  final _listController = ConvoKitConversationListController();
+
+  @override
+  void dispose() {
+    _listController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Conversations')),
       body: ConvoKitConversationList(
+        controller: _listController,
         onConversationSelected: (conversation) {
           Navigator.of(context).push(
             MaterialPageRoute<void>(
               builder:
-                  (_) => Scaffold(
-                    body: ConvoKitConversation(
-                      conversationId: conversation.id,
-                      onBack: () => Navigator.of(context).pop(),
-                    ),
+                  (_) => _ConversationPage(
+                    conversationId: conversation.id,
+                    listController: _listController,
                   ),
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _ConversationPage extends StatelessWidget {
+  const _ConversationPage({
+    required this.conversationId,
+    required this.listController,
+  });
+
+  final String conversationId;
+  final ConvoKitConversationListController listController;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: ConvoKitConversation(
+        conversationId: conversationId,
+        onBack: () => Navigator.of(context).pop(),
+        // An app bar in place of the default header, with a "Mark unread"
+        // action. Opening the room acknowledged it with the private-state
+        // version captured at open; the mark bumps that version, so this
+        // room's later acknowledgements no longer clear the marker and it
+        // survives until the next open. Leaving right away matches the
+        // mark's intent.
+        headerBuilder:
+            (context, conversation, onBack, onRefresh) => AppBar(
+              leading: onBack == null ? null : BackButton(onPressed: onBack),
+              title: Text(conversation.displayTitle),
+              actions: [
+                IconButton(
+                  tooltip: 'Mark unread',
+                  icon: const Icon(Icons.mark_chat_unread_outlined),
+                  onPressed: () {
+                    unawaited(listController.markUnread(conversation.id));
+                    onBack?.call();
+                  },
+                ),
+                if (onRefresh != null)
+                  IconButton(
+                    tooltip: 'Refresh conversation',
+                    icon: const Icon(Icons.refresh_rounded),
+                    onPressed: () => onRefresh(),
+                  ),
+              ],
+            ),
       ),
     );
   }

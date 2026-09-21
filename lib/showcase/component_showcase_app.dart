@@ -518,7 +518,7 @@ _VariantSpec _specFor(ShowcaseVariant variant) => switch (variant) {
     variant: ShowcaseVariant.standard,
     title: '1 · Standard components',
     description:
-        'Default list rows with previews and unread badges, header, bubbles, receipts, attachments and composer.',
+        'Default list rows with previews, unread badges and the mark-unread dot, header, bubbles, receipts, attachments and composer.',
     props: <String>[
       'summaries',
       'currentUserId',
@@ -534,7 +534,7 @@ _VariantSpec _specFor(ShowcaseVariant variant) => switch (variant) {
     variant: ShowcaseVariant.branded,
     title: '2 · Branded customer support',
     description:
-        'A purple support workspace with custom rows, header, ticket card, receipt and composer.',
+        'A purple support workspace with custom rows (count badge or mark-unread dot), header, ticket card, receipt and composer.',
     props: const <String>[
       'rowBuilder',
       'headerBuilder',
@@ -617,7 +617,9 @@ Widget _supportListItem(
   final summary = row.summary;
   final unreadCount = summary?.unreadCount ?? 0;
   final unreadCapped = summary?.unreadCountCapped ?? false;
-  final unread = unreadCount > 0 || unreadCapped;
+  final counted = unreadCount > 0 || unreadCapped;
+  // `isUnread` also covers the user's own "mark unread" marker with no count.
+  final unread = counted || (summary?.isUnread ?? false);
   final preview =
       convoKitInboxPreview(
         conversation: conversation,
@@ -665,12 +667,14 @@ Widget _supportListItem(
                 ],
               ),
             ),
-            if (unread)
+            if (counted)
               ConvoKitUnreadBadge(
                 key: const ValueKey('support-unread-badge'),
                 unreadCount: unreadCount,
                 capped: unreadCapped,
-              ),
+              )
+            else if (unread)
+              const ConvoKitUnreadDot(key: ValueKey('support-unread-dot')),
           ],
         ),
       ),
@@ -856,8 +860,13 @@ Widget _compactListItem(
 ) {
   final conversation = row.conversation;
   final summary = row.summary;
+  // A dense row shows one dot for any unread state: new messages or the
+  // user's own "mark unread" marker (`isUnread` with a count of 0).
   final unread =
-      summary != null && (summary.unreadCount > 0 || summary.unreadCountCapped);
+      summary != null &&
+      (summary.isUnread ||
+          summary.unreadCount > 0 ||
+          summary.unreadCountCapped);
   return Material(
     color: Colors.transparent,
     child: ListTile(
@@ -1119,13 +1128,20 @@ const _showcaseParticipants = <Participant>[
 ];
 
 /// Inbox data for every showcase room, shaped like the entries of
-/// `GET /api/v1/inbox`: the newest message, the unread count and the activity
-/// time. The first room is the only unread one.
+/// `GET /api/v1/inbox`: the newest message, the unread count, the activity
+/// time and the connected user's private "mark unread" state (`isUnread`,
+/// `unreadMarkedAt`, `privateStateVersion`). The first room has unread
+/// messages (a numeric badge); the last one was marked unread by the user with
+/// nothing new in it, so `isUnread` is true while `unreadCount` stays 0 and the
+/// rows render a numberless dot.
 final _showcaseSummaries = <String, InboxSummary>{
   'launch-room': InboxSummary(
     latestMessage: _showcaseMessages.last,
     unreadCount: 2,
     activityAt: _showcaseMessages.last.createdAt,
+    isUnread: true,
+    unreadMarkedAt: null,
+    privateStateVersion: 0,
   ),
   'customer-ops': InboxSummary(
     latestMessage: Message(
@@ -1136,6 +1152,9 @@ final _showcaseSummaries = <String, InboxSummary>{
       createdAt: _showcaseNow.subtract(const Duration(minutes: 18)),
     ),
     activityAt: _showcaseNow.subtract(const Duration(minutes: 18)),
+    isUnread: false,
+    unreadMarkedAt: null,
+    privateStateVersion: 0,
   ),
   'design-review': InboxSummary(
     latestMessage: Message(
@@ -1148,6 +1167,9 @@ final _showcaseSummaries = <String, InboxSummary>{
       createdAt: _showcaseNow.subtract(const Duration(hours: 2)),
     ),
     activityAt: _showcaseNow.subtract(const Duration(hours: 2)),
+    isUnread: false,
+    unreadMarkedAt: null,
+    privateStateVersion: 0,
   ),
   'incident-room': InboxSummary(
     latestMessage: Message(
@@ -1158,6 +1180,9 @@ final _showcaseSummaries = <String, InboxSummary>{
       createdAt: _showcaseNow.subtract(const Duration(hours: 6)),
     ),
     activityAt: _showcaseNow.subtract(const Duration(hours: 6)),
+    isUnread: true,
+    unreadMarkedAt: _showcaseNow.subtract(const Duration(minutes: 40)),
+    privateStateVersion: 1,
   ),
 };
 
