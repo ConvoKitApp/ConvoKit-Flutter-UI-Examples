@@ -5,6 +5,7 @@
 build/
 coverage/
 pubspec.lock
+pubspec_overrides.yaml
 .DS_Store
 .idea/
 .vscode/

@@ -131,6 +131,18 @@ class _ConversationPage extends StatelessWidget {
       // edit with the revision captured when it began (a conflict reloads
       // the row and keeps the draft), and a confirmed delete removes the row
       // here and on other devices. Nothing to wire for that.
+      //
+      // Quoting needs no wiring either: every confirmed row offers "Reply",
+      // the composer shows its cancellable "Replying to" strip, the sent
+      // message carries `replyToMessageId` and renders a quoted block whose
+      // text the controller resolves in one batched request per rendered
+      // page. Activating that block opens the quoted message, loading a
+      // window around it when it is outside the loaded history and offering
+      // "Jump to latest" until the room rejoins its newest page. The quoted
+      // routes need the 0.9 backend: against an older one the controller
+      // hides the jump affordance after the first answer and leaves quoted
+      // text unresolved, and a quote sent to it is delivered without its
+      // reference, so the quote disappears when the row is confirmed.
       body: ConvoKitConversation(
         conversationId: conversationId,
         onBack: () => Navigator.of(context).pop(),
