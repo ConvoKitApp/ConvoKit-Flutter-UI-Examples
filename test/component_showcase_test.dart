@@ -715,8 +715,10 @@ void main() {
 
       // Scrolling toward the newer edge calls `onLoadNewer`, which extends
       // the window forwards.
-      await tester.drag(history, const Offset(0, -300));
-      await tester.pumpAndSettle();
+      for (var i = 0; i < 4 && find.text(beyondWindow).evaluate().isEmpty; i++) {
+        await tester.drag(history, const Offset(0, -300));
+        await tester.pumpAndSettle();
+      }
       expect(find.text(beyondWindow), findsOneWidget);
 
       // Keeping at it reaches the room's newest message, which rejoins the

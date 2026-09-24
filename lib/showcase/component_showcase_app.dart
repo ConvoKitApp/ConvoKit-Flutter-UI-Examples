@@ -109,6 +109,67 @@ class _ShowcasePageState extends State<_ShowcasePage> {
   // directly: it renders `_window`, the range the host has loaded, the way an
   // SDK-backed controller renders the page it fetched.
   late List<Message> _history = List<Message>.of(_showcaseMessages);
+  final Map<String, MessageReactionSummary> _reactionSummaries = {
+    _showcaseMessages.last.id: MessageReactionSummary(
+      messageId: _showcaseMessages.last.id,
+      reactions: const [
+        ReactionSummary(emoji: '❤️', count: 2, reactedByMe: false),
+      ],
+      hasMore: false,
+    ),
+  };
+
+  Future<bool> _toggleReaction(Message message, String emoji) async {
+    setState(() {
+      final previous =
+          _reactionSummaries[message.id]?.reactions ??
+          const <ReactionSummary>[];
+      final found = previous.where((row) => row.emoji == emoji).firstOrNull;
+      final count = (found?.count ?? 0) + (found?.reactedByMe == true ? -1 : 1);
+      _reactionSummaries[message.id] = MessageReactionSummary(
+        messageId: message.id,
+        reactions: [
+          for (final row in previous)
+            if (row.emoji != emoji) row,
+          if (count > 0)
+            ReactionSummary(
+              emoji: emoji,
+              count: count,
+              reactedByMe: found?.reactedByMe != true,
+            ),
+        ],
+        hasMore: false,
+      );
+    });
+    return true;
+  }
+
+  Future<ReactionUsersPage> _listReactionUsers(
+    Message message,
+    String emoji,
+    String? cursor,
+  ) async => ReactionUsersPage(
+    data:
+        cursor != null
+            ? const []
+            : [
+              if (_reactionSummaries[message.id]?.reactions.any(
+                    (row) => row.emoji == emoji && row.reactedByMe,
+                  ) ==
+                  true)
+                ReactionUser(
+                  userId: _currentUserId,
+                  name: 'Maya Chen',
+                  reactedAt: DateTime.now(),
+                ),
+              ReactionUser(
+                userId: 'alex',
+                name: 'Alex Rivera',
+                reactedAt: DateTime.now(),
+              ),
+            ],
+    nextCursor: null,
+  );
   int _windowStart = 0;
   int _windowEnd = 0;
   // Whether the rendered window is a jumped-to one rather than the live tail.
@@ -360,6 +421,9 @@ class _ShowcasePageState extends State<_ShowcasePage> {
       onReplyToMessage: _startReply,
       onCancelReply: _cancelReply,
       replyPreviewByMessageId: _replyPreviews(),
+      reactionSummaries: _reactionSummaries,
+      onToggleReaction: _toggleReaction,
+      onListReactionUsers: _listReactionUsers,
       // Jump, highlight and the window around it.
       onJumpToMessage: _jumpToMessage,
       highlightedMessageId: _highlightedMessageId,
